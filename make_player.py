@@ -67,9 +67,10 @@ def yt_dlp_cmd(extra_args, out_template):
         '-o', out_template,
     ] + extra_args + [SRC]
     # Node.js + PO Token 플러그인이 설치되어 있을 때만 추가 (PC 환경)
+    # cmd: [python, '-m', 'yt_dlp', ...]  → yt_dlp 다음(인덱스 3)에 삽입
     import shutil
     if shutil.which('node'):
-        cmd[2:2] = ['--js-runtimes', 'node', '--remote-components', 'ejs:github']
+        cmd[3:3] = ['--js-runtimes', 'node', '--remote-components', 'ejs:github']
     cookies = BASE.parent / 'cookies.txt'
     if cookies.exists():
         cmd[3:3] = ['--cookies', str(cookies)]
