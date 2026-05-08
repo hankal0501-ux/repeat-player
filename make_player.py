@@ -29,19 +29,21 @@ PID = sys.argv[2]
 MODE = 'both'
 NOISE_DB = -30
 SILENCE_DUR = 0.4
+OUT_DIR_OVERRIDE = None
 i = 3
 while i < len(sys.argv):
     if sys.argv[i] == '--mode' and i+1 < len(sys.argv): MODE = sys.argv[i+1]; i += 2
     elif sys.argv[i] == '--noise' and i+1 < len(sys.argv): NOISE_DB = int(sys.argv[i+1]); i += 2
     elif sys.argv[i] == '--silence' and i+1 < len(sys.argv): SILENCE_DUR = float(sys.argv[i+1]); i += 2
+    elif sys.argv[i] == '--out-dir' and i+1 < len(sys.argv): OUT_DIR_OVERRIDE = sys.argv[i+1]; i += 2
     else: i += 1
 
 if MODE not in ('both', 'download', 'stream'):
     print(f'Invalid mode: {MODE}'); sys.exit(1)
 
 BASE = Path(__file__).parent
-OUT_DIR = BASE / 'output'
-OUT_DIR.mkdir(exist_ok=True)
+OUT_DIR = Path(OUT_DIR_OVERRIDE) if OUT_DIR_OVERRIDE else (BASE / 'output')
+OUT_DIR.mkdir(exist_ok=True, parents=True)
 
 def get_ffmpeg():
     import imageio_ffmpeg

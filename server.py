@@ -29,9 +29,28 @@ MAKE = BASE / 'make_player.py'
 # 포트: 1) CLI 인자  2) 환경변수 PORT (Render/Heroku 표준)  3) 기본 5757
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else int(os.environ.get('PORT', 5757))
 
-# 가족 공유용 BasicAuth — 환경변수 RP_USER, RP_PASS 설정 시 요구
-RP_USER = os.environ.get('RP_USER', '')
-RP_PASS = os.environ.get('RP_PASS', '')
+# 가족 공유용 BasicAuth
+# - RP_USERS = "user1:pass1,user2:pass2,..." (사용자별 영상 분리)
+# - 또는 RP_USER + RP_PASS (단일 사용자, 레거시)
+def _parse_users(s):
+    out = {}
+    for pair in (s or '').split(','):
+        pair = pair.strip()
+        if ':' in pair:
+            u, p = pair.split(':', 1)
+            u, p = u.strip(), p.strip()
+            if u and p:
+                out[u] = p
+    return out
+RP_USERS = _parse_users(os.environ.get('RP_USERS', ''))
+_legacy_user = os.environ.get('RP_USER', '').strip()
+_legacy_pass = os.environ.get('RP_PASS', '').strip()
+if not RP_USERS and _legacy_user and _legacy_pass:
+    RP_USERS = {_legacy_user: _legacy_pass}
+
+def safe_user_name(u):
+    """파일시스템에 안전한 사용자명 (영문/숫자/밑줄만)."""
+    return re.sub(r'[^A-Za-z0-9_-]', '_', u)[:32] or 'user'
 
 JOBS = {}
 JOB_LOCK = threading.Lock()
@@ -191,13 +210,15 @@ def ocr_image_bytes(img_bytes):
             best = text
     return best.strip()
 
-def list_projects():
+def list_projects(d=None):
+    """d: 데이터 폴더 (사용자별 분리). None이면 OUT_DIR 직접."""
+    d = Path(d) if d else OUT_DIR
     projs = []
-    for meta_file in OUT_DIR.glob('*.meta.json'):
+    for meta_file in d.glob('*.meta.json'):
         try:
             meta = json.loads(meta_file.read_text(encoding='utf-8'))
             pid = meta['id']
-            mp4 = OUT_DIR / f'{pid}.mp4'
+            mp4 = d / f'{pid}.mp4'
             size_mb = mp4.stat().st_size / 1048576 if mp4.exists() else 0
             projs.append({
                 'id': pid,
@@ -211,17 +232,17 @@ def list_projects():
             })
         except: pass
     # Fallback: also list legacy HTMLs without meta
-    for html in OUT_DIR.glob('*.html'):
+    for html in d.glob('*.html'):
         if html.name == 'index.html': continue
         pid = html.stem
         if any(p['id'] == pid for p in projs): continue
-        seg_file = OUT_DIR / f'{pid}.segments.json'
+        seg_file = d / f'{pid}.segments.json'
         n_seg = 0
         try:
             data = json.loads(seg_file.read_text(encoding='utf-8'))
             n_seg = data.get('count', len(data.get('segments', [])))
         except: pass
-        mp4 = OUT_DIR / f'{pid}.mp4'
+        mp4 = d / f'{pid}.mp4'
         projs.append({
             'id': pid, 'video_id': '', 'has_download': mp4.exists(),
             'has_stream': False, 'segments_count': n_seg,
@@ -231,15 +252,17 @@ def list_projects():
     projs.sort(key=lambda p: p['id'])
     return projs
 
-def get_meta(pid):
-    meta_file = OUT_DIR / f'{pid}.meta.json'
+def get_meta(pid, d=None):
+    """d: 데이터 폴더 (사용자별 분리)."""
+    d = Path(d) if d else OUT_DIR
+    meta_file = d / f'{pid}.meta.json'
     if meta_file.exists():
         return json.loads(meta_file.read_text(encoding='utf-8'))
     # Legacy fallback
-    seg_file = OUT_DIR / f'{pid}.segments.json'
+    seg_file = d / f'{pid}.segments.json'
     if seg_file.exists():
         data = json.loads(seg_file.read_text(encoding='utf-8'))
-        mp4 = OUT_DIR / f'{pid}.mp4'
+        mp4 = d / f'{pid}.mp4'
         return {
             'id': pid, 'video_id': '', 'video_file': f'{pid}.mp4' if mp4.exists() else '',
             'has_download': mp4.exists(), 'has_stream': False,
@@ -273,11 +296,13 @@ def parse_multipart(body, boundary):
             result[name] = {'value': data.decode('utf-8', 'replace')}
     return result
 
-def process_video_async(pid, url, mode='both', noise=-30, silence=0.4):
+def process_video_async(pid, url, mode='both', noise=-30, silence=0.4, out_dir=None):
     with JOB_LOCK:
         JOBS[pid] = {'status': 'running', 'log': [], 'started': time.time()}
     cmd = [sys.executable, str(MAKE), url, pid, '--mode', mode,
            '--noise', str(noise), '--silence', str(silence)]
+    if out_dir:
+        cmd += ['--out-dir', str(out_dir)]
     try:
         proc = subprocess.Popen(cmd, cwd=str(BASE),
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -1924,16 +1949,19 @@ class Handler(SimpleHTTPRequestHandler):
         super().end_headers()
 
     def _check_auth(self):
-        # RP_USER+RP_PASS 환경변수 설정 시 BasicAuth 요구
-        if not RP_USER or not RP_PASS:
-            return True
+        # RP_USERS 환경변수 설정 시 BasicAuth 요구
+        # 인증 후 self.user에 로그인한 사용자명 저장됨
+        self.user = None
+        if not RP_USERS:
+            return True  # 인증 불요 (PC 로컬용)
         import base64
         h = self.headers.get('Authorization', '')
         if h.startswith('Basic '):
             try:
                 decoded = base64.b64decode(h[6:]).decode('utf-8')
                 user, pwd = decoded.split(':', 1)
-                if user == RP_USER and pwd == RP_PASS:
+                if RP_USERS.get(user) == pwd:
+                    self.user = user
                     return True
             except Exception:
                 pass
@@ -1944,6 +1972,14 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write('인증이 필요합니다 (가족 공유용)'.encode('utf-8'))
         return False
+
+    def user_dir(self):
+        """현재 로그인한 사용자의 데이터 폴더. 인증 안 한 경우(PC 로컬) OUT_DIR 직접 반환."""
+        if self.user:
+            d = OUT_DIR / safe_user_name(self.user)
+            d.mkdir(exist_ok=True, parents=True)
+            return d
+        return OUT_DIR
 
     def do_GET(self):
         if not self._check_auth(): return
@@ -1956,12 +1992,14 @@ class Handler(SimpleHTTPRequestHandler):
             self.wfile.write(body)
             return
         if self.path == '/api/list':
-            return self._json(list_projects())
+            return self._json(list_projects(self.user_dir()))
         if self.path.startswith('/api/meta'):
             qs = parse_qs(urlparse(self.path).query)
             pid = qs.get('pid', [''])[0]
-            meta = get_meta(pid)
+            meta = get_meta(pid, self.user_dir())
             return self._json(meta or {'error':'not found'}, 200 if meta else 404)
+        if self.path == '/api/whoami':
+            return self._json({'user': self.user or ''})
         if self.path.startswith('/api/status'):
             qs = parse_qs(urlparse(self.path).query)
             pid = qs.get('pid', [''])[0]
@@ -1986,7 +2024,9 @@ class Handler(SimpleHTTPRequestHandler):
         path = self.path.lstrip('/')
         from urllib.parse import unquote
         path = unquote(path.split('?')[0])
-        full_path = os.path.join(str(OUT_DIR), path)
+        # 사용자 폴더 우선, 못 찾으면 OUT_DIR 직접 (레거시)
+        user_path = os.path.join(str(self.user_dir()), path)
+        full_path = user_path if os.path.isfile(user_path) else os.path.join(str(OUT_DIR), path)
         if os.path.isfile(full_path):
             ext = path.lower().rsplit('.', 1)[-1] if '.' in path else ''
             if ext in ('mp4','m4a','webm','mkv','mov','aac','mp3','ogg'):
@@ -2066,10 +2106,14 @@ class Handler(SimpleHTTPRequestHandler):
             params = parse_qs(self.rfile.read(length).decode('utf-8'))
             pid = params.get('pid', [''])[0]
             t = params.get('time', ['0'])[0]
-            meta = get_meta(pid)
+            meta = get_meta(pid, self.user_dir())
             if not meta:
                 return self._json({'error': 'project not found'}, 404)
-            video = OUT_DIR / meta.get('video_file', '')
+            video = self.user_dir() / meta.get('video_file', '')
+            if not video.exists():
+                # 레거시 폴백 (OUT_DIR 직접)
+                legacy = OUT_DIR / meta.get('video_file', '')
+                if legacy.exists(): video = legacy
             if not video.exists():
                 return self._json({'error': 'video file missing'}, 404)
             # Extract frame at time t
@@ -2141,14 +2185,15 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._json({'error': 'pid and file required'}, 400)
             if not re.match(r'^[a-zA-Z0-9_-]+$', pid):
                 return self._json({'error': 'invalid pid'}, 400)
-            target = OUT_DIR / f'{pid}.mp4'
+            udir = self.user_dir()
+            target = udir / f'{pid}.mp4'
             target.write_bytes(file['data'])
             # Trigger processing in background
             mode = fields.get('mode', {}).get('value', 'download')
             noise = int(fields.get('noise', {}).get('value', '-30'))
             silence = float(fields.get('silence', {}).get('value', '0.4'))
             t = threading.Thread(target=process_video_async,
-                                 args=(pid, str(target), mode, noise, silence), daemon=True)
+                                 args=(pid, str(target), mode, noise, silence, str(udir)), daemon=True)
             t.start()
             # Save name if provided
             return self._json({'ok': True, 'pid': pid, 'size_mb': round(len(file['data'])/1048576, 1)})
@@ -2159,7 +2204,11 @@ class Handler(SimpleHTTPRequestHandler):
             new_name = params.get('name', [''])[0].strip()
             if not pid or not new_name:
                 return self._json({'error': 'pid and name required'}, 400)
-            meta_file = OUT_DIR / f'{pid}.meta.json'
+            meta_file = self.user_dir() / f'{pid}.meta.json'
+            if not meta_file.exists():
+                # 레거시 폴백
+                legacy = OUT_DIR / f'{pid}.meta.json'
+                if legacy.exists(): meta_file = legacy
             if not meta_file.exists():
                 return self._json({'error': 'project not found'}, 404)
             try:
@@ -2176,11 +2225,14 @@ class Handler(SimpleHTTPRequestHandler):
             if not pid or not re.match(r'^[a-zA-Z0-9_-]+$', pid):
                 return self._json({'error': 'invalid pid'}, 400)
             removed = []
+            udir = self.user_dir()
             for ext in ['.meta.json', '.segments.json', '.html', '.mp4', '.m4a']:
-                f = OUT_DIR / f'{pid}{ext}'
-                if f.exists():
-                    try: f.unlink(); removed.append(f.name)
-                    except: pass
+                # 사용자 폴더 + 레거시 OUT_DIR 둘 다 확인
+                for d in [udir, OUT_DIR]:
+                    f = d / f'{pid}{ext}'
+                    if f.exists():
+                        try: f.unlink(); removed.append(f.name)
+                        except: pass
             return self._json({'ok': True, 'removed': removed})
         if self.path == '/api/process':
             length = int(self.headers.get('Content-Length', 0))
@@ -2199,7 +2251,8 @@ class Handler(SimpleHTTPRequestHandler):
                 if pid in JOBS and JOBS[pid].get('status') == 'running':
                     return self._json({'error': 'already running'}, 409)
             t = threading.Thread(target=process_video_async,
-                                 args=(pid, url, mode, int(noise), float(silence)), daemon=True)
+                                 args=(pid, url, mode, int(noise), float(silence), str(self.user_dir())),
+                                 daemon=True)
             t.start()
             return self._json({'ok': True, 'pid': pid})
         self.send_error(404)
