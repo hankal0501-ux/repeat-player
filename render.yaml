@@ -1,0 +1,20 @@
+# Render Blueprint — 한 번 클릭으로 배포
+# 사용법: GitHub repo에 push 후 https://render.com/deploy 에서 이 repo 선택
+services:
+  - type: web
+    name: repeat-player
+    env: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /
+    envVars:
+      - key: RP_USER
+        sync: false        # Render 대시보드에서 직접 입력
+      - key: RP_PASS
+        sync: false        # Render 대시보드에서 직접 입력
+      - key: PORT
+        value: 5757
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1

@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#1e3a8a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>통합 플레이어 (Mobile)</title>
+<link rel="manifest" href="./manifest.json">
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;height:100%;background:#0f172a;color:#e5e7eb;
+  font-family:-apple-system,'Malgun Gothic',sans-serif;overflow:hidden;
+  user-select:none;-webkit-user-select:none}
+button,select,input{font-family:inherit}
+.app{display:flex;flex-direction:column;height:100vh;height:100dvh}
+
+/* === 홈 === */
+.home{flex:1;overflow-y:auto;padding:20px}
+.hero{text-align:center;margin:30px 0 24px}
+.hero-logo{font-size:64px;line-height:1}
+.hero-title{margin:8px 0 4px;font-size:24px;color:#60a5fa}
+.hero-sub{margin:0;color:#9ca3af;font-size:13px}
+.btn-pick{display:block;width:100%;background:#1e3a8a;color:#fff;border:none;
+  padding:18px;border-radius:12px;font-size:16px;font-weight:bold;cursor:pointer;
+  margin:8px 0}
+.btn-pick:active{background:#1e40af}
+.recent{margin-top:24px}
+.recent h3{font-size:13px;color:#9ca3af;margin:0 0 8px;text-transform:uppercase;letter-spacing:1px}
+.recent .empty{padding:24px;text-align:center;color:#6b7280;background:#1f2937;border-radius:10px;font-size:13px}
+.recent-card{background:#1f2937;padding:12px 14px;border-radius:10px;margin-bottom:8px;
+  display:flex;justify-content:space-between;align-items:center;cursor:pointer}
+.recent-card:active{background:#374151}
+.recent-card .name{font-weight:bold;font-size:15px;color:#f3f4f6}
+.recent-card .meta{font-size:12px;color:#9ca3af;margin-top:2px}
+.recent-card .btn-del{background:#7f1d1d;color:#fecaca;border:none;
+  padding:6px 10px;border-radius:6px;font-size:12px;cursor:pointer}
+.disclaimer{margin-top:24px;padding:10px 14px;background:#1e293b;border-left:3px solid #f59e0b;
+  font-size:11px;color:#cbd5e1;border-radius:4px;line-height:1.6}
+
+/* === 플레이어 === */
+.player{display:none;flex-direction:column;height:100%}
+.player.active{display:flex}
+.video-wrap{flex:1 1 auto;background:#000;display:flex;align-items:center;
+  justify-content:center;overflow:hidden;min-height:140px;position:relative}
+video{max-width:100%;max-height:100%;width:auto;height:100%}
+video::-webkit-media-controls-overlay-play-button{display:none !important}
+video::-webkit-media-controls-start-playback-button{display:none !important}
+.processing-overlay{position:absolute;inset:0;background:rgba(0,0,0,0.85);
+  display:none;align-items:center;justify-content:center;flex-direction:column;
+  color:#fff;z-index:10;padding:20px;text-align:center}
+.processing-overlay.show{display:flex}
+.processing-overlay .spinner{width:40px;height:40px;border:4px solid #374151;
+  border-top-color:#60a5fa;border-radius:50%;animation:spin 1s linear infinite;margin-bottom:12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* === 진행바 === */
+.progress{padding:4px 10px;background:#0b1220;display:flex;gap:6px;align-items:center;flex-shrink:0}
+.cursor{font-size:11px;color:#fbbf24;min-width:60px}
+.bar-wrap{flex:1;height:18px;background:#1f2937;border-radius:9px;position:relative;cursor:pointer}
+.bar{height:100%;background:#22c55e;border-radius:9px}
+.seg-cur{position:absolute;top:0;height:100%;background:rgba(245,158,11,0.5);border-radius:9px}
+.marker{position:absolute;top:-2px;width:4px;height:22px;background:#ef4444;border-radius:2px;transform:translateX(-50%)}
+
+/* === 컨트롤 === */
+.controls{position:sticky;bottom:0;background:#0b1220;box-shadow:0 -2px 8px rgba(0,0,0,.5);
+  padding:6px 6px calc(8px + env(safe-area-inset-bottom));z-index:50}
+.ctrl-row{display:flex;flex-wrap:wrap;gap:5px;justify-content:center}
+.ctrl-row > *{flex:1 1 0;min-width:0;width:0;min-height:42px;padding:8px 4px;
+  font-size:13px;font-weight:600;border:none;border-radius:8px;color:#f3f4f6;
+  background:#374151;cursor:pointer;text-align:center;white-space:nowrap;
+  text-overflow:ellipsis;overflow:hidden}
+.ctrl-row .play-big{background:#1e3a8a;font-size:15px}
+.ctrl-row #auto.active{background:#1e3a8a}
+.ctrl-spacer{flex:0 0 100%;height:0;margin:0;background:none;padding:0}
+.ctrl-row select{appearance:none;-webkit-appearance:none;text-align-last:center}
+.btn-back{background:#374151;color:#fff;border:none;padding:8px 14px;
+  border-radius:8px;font-size:13px;font-weight:bold;cursor:pointer;flex:0 0 auto !important;width:auto !important}
+
+/* === 모달 === */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;
+  align-items:center;justify-content:center;z-index:100;padding:20px}
+.modal.show{display:flex}
+.modal-card{background:#1f2937;border-radius:12px;padding:18px;max-width:340px;width:100%}
+.modal-card h2{margin:0 0 10px;font-size:16px;color:#60a5fa}
+.modal-card .actions{display:flex;gap:8px;margin-top:12px}
+.modal-card button{flex:1;padding:10px;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:bold}
+.btn-ok{background:#22c55e;color:#fff}
+.btn-cancel{background:#374151;color:#e5e7eb}
+
+/* === 토스트 === */
+.toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%);
+  background:rgba(15,23,42,0.95);color:#fff;padding:10px 16px;border-radius:8px;
+  font-size:13px;z-index:200;max-width:90%;text-align:center;
+  box-shadow:0 4px 12px rgba(0,0,0,0.5);display:none}
+.toast.show{display:block}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+  <!-- 홈 화면 -->
+  <div class="home" id="home">
+    <div class="hero">
+      <div class="hero-logo">🔁</div>
+      <h1 class="hero-title">통합 플레이어</h1>
+      <p class="hero-sub">언어 학습용 동영상 반복 (폰 단독)</p>
+    </div>
+    <label class="btn-pick" for="file-input" style="display:block;text-align:center">영상 파일 선택</label>
+    <input type="file" id="file-input"
+           accept="video/mp4,video/webm,video/x-matroska,video/quicktime,video/*,.mp4,.mkv,.webm,.mov,.m4v"
+           style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none">
+    <div style="text-align:center;color:#9ca3af;font-size:11px;margin-top:6px">
+      mp4 · mkv · webm · mov 등 — 폰의 갤러리/다운로드/파일 앱에서 선택
+    </div>
+
+    <div style="margin-top:18px">
+      <div style="font-size:13px;color:#9ca3af;margin-bottom:6px">또는 YouTube 주소</div>
+      <div style="display:flex;gap:6px">
+        <input type="url" id="url-input" placeholder="https://www.youtube.com/watch?v=..."
+               style="flex:1;padding:12px;background:#1f2937;color:#f3f4f6;
+                      border:1px solid #374151;border-radius:8px;font-size:13px">
+        <button onclick="pasteUrl()" style="padding:12px 16px;background:#374151;
+                color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-weight:bold">붙여넣기</button>
+      </div>
+      <button onclick="loadYoutubeUrl()" style="display:block;width:100%;margin-top:6px;
+              padding:14px;background:#dc2626;color:#fff;border:none;border-radius:8px;
+              font-size:15px;font-weight:bold;cursor:pointer">YouTube 영상 열기</button>
+      <div style="text-align:center;color:#9ca3af;font-size:11px;margin-top:6px">
+        YouTube 스트리밍 (다운로드 X). 무음 자동 감지 불가 — 30초 단위 자동 분할
+      </div>
+    </div>
+
+    <div class="recent">
+      <h3>최근 영상</h3>
+      <div id="recent-list"><div class="empty">아직 영상을 추가하지 않았습니다.</div></div>
+    </div>
+
+    <div class="disclaimer">
+      안내: 본인 권한이 있는 영상이거나 사적 학습용으로만 사용하세요.<br>
+      모든 처리는 폰 안에서 이루어지며 외부에 전송되지 않습니다.
+    </div>
+  </div>
+
+  <!-- 플레이어 화면 -->
+  <div class="player" id="player">
+    <div class="video-wrap">
+      <video id="v" playsinline preload="auto" onclick="togglePlay()"></video>
+      <div id="yt-iframe" style="display:none;width:100%;height:100%"></div>
+      <div class="processing-overlay" id="proc-overlay">
+        <div class="spinner"></div>
+        <div id="proc-msg">영상 분석 중...</div>
+        <div id="proc-detail" style="font-size:12px;color:#9ca3af;margin-top:8px"></div>
+      </div>
+    </div>
+
+    <div class="progress">
+      <span class="cursor" id="cursor">0:00</span>
+      <div class="bar-wrap" id="bar-wrap" onclick="seekClick(event)">
+        <div class="bar" id="bar"></div>
+        <div class="seg-cur" id="seg-cur" style="display:none"></div>
+        <div class="marker" id="marker" style="left:0%"></div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="ctrl-row">
+        <button class="btn-back" onclick="goHome()">홈</button>
+        <button id="prev" onclick="prevSeg()">이전</button>
+        <button id="play" class="play-big" onclick="togglePlay()">▶</button>
+        <button id="next" onclick="nextSeg()">다음</button>
+        <div class="ctrl-spacer"></div>
+        <select id="repeat">
+          <option value="1" selected>반복 없음</option>
+          <option value="2">반복 2x</option>
+          <option value="3">반복 3x</option>
+          <option value="5">반복 5x</option>
+          <option value="99">반복 ∞</option>
+        </select>
+        <button id="auto" class="active" onclick="toggleAuto()">자동 ON</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="modal" id="modal">
+  <div class="modal-card">
+    <h2 id="modal-title">제목</h2>
+    <div id="modal-body"></div>
+    <div class="actions">
+      <button class="btn-cancel" onclick="closeModal()">취소</button>
+      <button class="btn-ok" id="modal-ok">확인</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="./dict.js"></script>
+<script src="./app.js"></script>
+<script>
+// PWA: Service Worker 등록
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(e => console.log('SW 실패', e));
+  });
+}
+</script>
+</body>
+</html>

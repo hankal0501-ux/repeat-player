@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<title>통합 플레이어 - 홈</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  body{font-family:-apple-system,'Malgun Gothic',sans-serif;background:#0f172a;color:#e5e7eb;margin:0;padding:30px;display:flex;align-items:center;justify-content:center;min-height:100vh}
+  .card{background:#1f2937;border-radius:14px;padding:32px;max-width:520px;width:100%;box-shadow:0 8px 24px rgba(0,0,0,.3)}
+  h1{margin:0 0 18px;color:#60a5fa;font-size:22px}
+  p{margin:8px 0;color:#9ca3af;font-size:13px}
+  .url{display:block;background:#0f172a;border:1px solid #374151;padding:14px 18px;border-radius:8px;margin:10px 0;
+       color:#22c55e;text-decoration:none;font-size:18px;font-weight:bold;text-align:center;transition:all .15s}
+  .url:hover{background:#1e3a8a;color:#fff;border-color:#60a5fa;transform:translateY(-1px)}
+  .label{font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin-top:14px}
+  .lan{font-size:13px;color:#fbbf24}
+  .footer{margin-top:24px;padding-top:18px;border-top:1px solid #374151;font-size:12px;color:#6b7280;text-align:center}
+</style></head>
+<body><div class="card">
+  <h1>🎬 통합 플레이어</h1>
+  <p>아래 링크를 클릭해 들어가세요.</p>
+
+  <div class="label">PC</div>
+  <a class="url" href="http://localhost:5757/">http://localhost:5757/</a>
+
+  <div class="label">폰 / 태블릿 (같은 Wi-Fi)</div>
+  <a class="url" id="lan-link" href="#">감지 중...</a>
+  <p class="lan" id="lan-hint">서버 실행 후 자동으로 감지됩니다.</p>
+
+  <div class="footer">
+    💡 서버가 꺼져 있으면 <code>서버시작.bat</code> 더블클릭<br>
+    💡 폰에서 안 보이면 Windows 방화벽에서 5757 포트 허용
+  </div>
+</div>
+<script>
+  fetch('http://localhost:5757/api/lanip').then(r=>r.json()).then(d=>{
+    if(d && d.ip){
+      const u = `http://${d.ip}:5757/`;
+      const el = document.getElementById('lan-link');
+      el.href = u; el.textContent = u;
+      document.getElementById('lan-hint').textContent = '서버 실행 중. 폰에서 위 주소로 접속하세요.';
+    }
+  }).catch(()=>{
+    document.getElementById('lan-link').textContent = '서버 꺼짐 — 서버시작.bat 실행';
+    document.getElementById('lan-hint').textContent = '⚠ 서버가 실행되지 않았습니다.';
+  });
+</script>
+</body></html>

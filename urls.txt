@@ -1,0 +1,13 @@
+# 한 줄에 하나씩: <id> <url> [optional --mode/--noise/--silence]
+# 이미 처리된 ID는 자동 스킵됩니다.
+# 새 영상만 추가하면 됨.
+
+# 예시 (실제 영상 URL로 교체):
+# v4_chinese_basic https://www.youtube.com/watch?v=AAA
+# v5_grammar https://www.youtube.com/watch?v=BBB --silence 0.3
+# v6_listening https://www.youtube.com/watch?v=CCC --noise -25
+
+# 이미 처리된 영상들 (스킵됨):
+v1_oncn555 https://www.youtube.com/watch?v=wdQgt9veu4g
+v2_barooseo https://www.youtube.com/watch?v=mda0Go1t8EE
+v3_japanese https://www.youtube.com/watch?v=J7hoGaOx85c

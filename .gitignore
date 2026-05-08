@@ -1,0 +1,32 @@
+# API 키 (개인 정보 — 절대 커밋 금지)
+openrouter.key
+
+# 사용자 영상/자막 (개인 데이터)
+output/
+output/*
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.venv/
+venv/
+
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# 에디터
+.vscode/
+.idea/
+*.swp
+
+# 임시
+*.tmp
+*.log
+/tmp/
+
+# 노드 (PO Token 서버 옵션 사용 시)
+node_modules/
