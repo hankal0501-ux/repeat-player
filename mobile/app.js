@@ -121,7 +121,7 @@ async function renderRecent(){
       : '';
     const sizeLabel = m.size ? `· ${(m.size/1048576).toFixed(0)}MB` : (m.video_id ? '· YouTube' : '');
     return `
-    <div class="recent-card" onclick="loadVideo('${m.id}')">
+    <div class="recent-card" onclick="selectRecent('${m.id}')">
       <div style="flex:1;min-width:0">
         <div class="name">${escapeHtml(m.name)} ${srcLink}</div>
         <div class="meta">${total}개 문장 ${sizeLabel} ${continueLabel}</div>
@@ -133,6 +133,29 @@ async function renderRecent(){
 }
 
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// 리스트 클릭 → 주소 입력란에 URL 채우고 페이지 위로 스크롤 (2단계 열기 UX)
+async function selectRecent(id){
+  try {
+    const meta = await dbGet('meta', id);
+    if(!meta){ toast('메타 정보 없음'); return; }
+    const inp = document.getElementById('url-input');
+    if(meta.source){
+      inp.value = meta.source;
+    } else if(meta.video_id){
+      inp.value = `https://youtu.be/${meta.video_id}`;
+    } else {
+      // 로컬 파일 영상은 URL이 없으니 바로 열기
+      loadVideo(id);
+      return;
+    }
+    // 화면 맨 위 + URL 입력란 강조
+    window.scrollTo({top: 0, behavior: 'smooth'});
+    inp.focus();
+    inp.select();
+    toast(`주소 입력란에 표시됨 — [영상 열기] 누르세요`, 2500);
+  } catch(e){ console.error(e); toast('오류: ' + e.message); }
+}
 
 async function deleteVideo(id){
   if(!confirm('이 영상을 삭제할까요?')) return;
