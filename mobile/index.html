@@ -18,6 +18,9 @@ button,select,input{font-family:inherit}
 
 /* === 홈 === */
 .home{flex:1;overflow-y:auto;padding:20px}
+.version-badge{position:fixed;top:6px;right:6px;background:rgba(30,58,138,0.85);
+  color:#bfdbfe;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:bold;
+  z-index:200;pointer-events:none}
 .hero{text-align:center;margin:24px 0 20px}
 .hero-logo-wrap{width:96px;height:96px;margin:0 auto;
   filter:drop-shadow(0 8px 16px rgba(96,165,250,0.4))}
@@ -124,6 +127,7 @@ video::-webkit-media-controls-start-playback-button{display:none !important}
 </style>
 </head>
 <body>
+<div class="version-badge" id="version-badge">v? · ?</div>
 <div class="app" id="app">
 
   <!-- 홈 화면 -->
@@ -195,6 +199,9 @@ video::-webkit-media-controls-start-playback-button{display:none !important}
       이 도구는 <b style="color:#86efac">언어 학습 전용 비상업 도구</b>입니다.
       사용에 따른 모든 법적 책임은 사용자에게 있으며, 영상의 권리는 원작자에게 귀속됩니다.
       본 도구 제작자는 사용자의 활동에 대해 어떠한 책임도 지지 않습니다.
+      <div style="margin-top:8px;font-size:10px;color:#4b5563">
+        <span id="app-version">v?</span> · <span id="app-build">build ?</span>
+      </div>
     </div>
   </div>
 

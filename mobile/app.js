@@ -1,6 +1,15 @@
 // === app.js — 폰 단독 영상 반복 플레이어 ===
 // 의존: dict.js (HANJA_DICT, WORD_DICT, JP_DICT, analyze*, detectLang)
 
+const APP_VERSION = 'v6';
+const APP_BUILD = '2026-05-08';
+window.addEventListener('DOMContentLoaded', () => {
+  const set = (id, txt) => { const el = document.getElementById(id); if(el) el.textContent = txt; };
+  set('version-badge', APP_VERSION + ' · ' + APP_BUILD);
+  set('app-version', APP_VERSION);
+  set('app-build', 'build ' + APP_BUILD);
+});
+
 // === IndexedDB (영상 파일 저장) ===
 const DB_NAME = 'RepeatPlayer';
 const DB_VERSION = 1;

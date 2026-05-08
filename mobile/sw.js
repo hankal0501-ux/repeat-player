@@ -1,5 +1,5 @@
 // Service Worker — 오프라인 캐시
-const CACHE_NAME = 'repeat-player-v5';
+const CACHE_NAME = 'repeat-player-v6';
 const ASSETS = [
   './',
   './index.html',
