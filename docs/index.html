@@ -89,11 +89,13 @@ video::-webkit-media-controls-start-playback-button{display:none !important}
 /* === 컨트롤 === */
 .controls{position:sticky;bottom:0;background:#0b1220;box-shadow:0 -2px 8px rgba(0,0,0,.5);
   padding:6px 6px calc(8px + env(safe-area-inset-bottom));z-index:50}
-.ctrl-row{display:flex;flex-wrap:wrap;gap:0 5px;justify-content:center;row-gap:0}
+.ctrl-row{display:flex;flex-wrap:wrap;gap:4px 5px;justify-content:center}
 .ctrl-row > *{flex:1 1 0;min-width:0;width:0;min-height:42px;padding:8px 4px;
-  font-size:13px;font-weight:600;border:none;border-radius:8px;color:#f3f4f6;
+  font-size:13px;font-weight:600;border:1px solid #4b5563;border-radius:8px;color:#f3f4f6;
   background:#374151;cursor:pointer;text-align:center;white-space:nowrap;
-  text-overflow:ellipsis;overflow:hidden}
+  text-overflow:ellipsis;overflow:hidden;
+  box-shadow:0 1px 2px rgba(0,0,0,0.3)}
+.ctrl-row > *:active{background:#1f2937;transform:translateY(1px)}
 .ctrl-row .play-big{background:#1e3a8a;font-size:15px}
 .ctrl-row #auto.active{background:#1e3a8a}
 .ctrl-row .ctrl-spacer{flex:0 0 100% !important;width:100% !important;height:0 !important;min-height:0 !important;max-height:0 !important;margin:0 !important;padding:0 !important;background:none !important;border:none !important;visibility:hidden}

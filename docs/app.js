@@ -86,9 +86,16 @@ window.addEventListener('load', async () => {
   } catch(e){
     toast('DB 초기화 실패: ' + e.message);
   }
-  // OpenRouter 키 확인 → AI 버튼 표시
+  // 마지막 URL 복원 (input 비어있을 때만)
+  try {
+    const lastUrl = localStorage.getItem('last_url');
+    const inp = document.getElementById('url-input');
+    if(lastUrl && inp && !inp.value) inp.value = lastUrl;
+  } catch(e) {}
+  // OpenRouter 키 있으면 AI 버튼 표시 (현재 PWA에는 ai-btn 없음 — 안전 가드)
   if(localStorage.getItem('openrouter_key')){
-    document.getElementById('ai-btn').style.display = '';
+    const ab = document.getElementById('ai-btn');
+    if(ab) ab.style.display = '';
   }
 });
 
@@ -279,8 +286,23 @@ async function detectSegments(file){
 // === 영상 로드 ===
 async function loadVideo(id){
   const meta = await dbGet('meta', id);
+  if(!meta){ toast('메타 정보 없음'); return; }
+  // YouTube 영상은 파일이 없고 video_id만으로 IFrame 재생
+  if(meta.is_youtube || meta.video_id){
+    curMeta = meta;
+    curId = id;
+    SEGMENTS = meta.segments || [];
+    document.getElementById('home').style.display = 'none';
+    document.getElementById('player').classList.add('active');
+    initYouTubePlayer(meta.video_id, false);
+    return;
+  }
+  // 로컬 파일 영상
   const rec = await dbGet('videos', id);
-  if(!meta || !rec){ toast('영상 데이터 없음'); return; }
+  if(!rec){
+    toast('영상 파일 없음 (브라우저가 IndexedDB 정리한 것 같음). 영상을 다시 추가하세요.', 4500);
+    return;
+  }
   curMeta = meta;
   curId = id;
   SEGMENTS = meta.segments;
@@ -507,6 +529,8 @@ async function loadYoutubeUrl(){
     toast('YouTube 주소를 못 읽었습니다: ' + preview + ' — 다시 확인하세요', 4500);
     return;
   }
+  // 마지막 URL 기억 (다음 방문 시 복원)
+  try { localStorage.setItem('last_url', url); } catch(e) {}
 
   const id = 'yt_' + vid;
   // 이미 등록된 영상이면 그걸 로드
