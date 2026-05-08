@@ -1,7 +1,7 @@
 // === app.js — 폰 단독 영상 반복 플레이어 ===
 // 의존: dict.js (HANJA_DICT, WORD_DICT, JP_DICT, analyze*, detectLang)
 
-const APP_VERSION = 'v6';
+const APP_VERSION = 'v7';
 const APP_BUILD = '2026-05-08';
 window.addEventListener('DOMContentLoaded', () => {
   const set = (id, txt) => { const el = document.getElementById(id); if(el) el.textContent = txt; };
@@ -391,7 +391,18 @@ function goHome(){
 // === 재생 ===
 function play(){ v.play().catch(()=>{}); }
 function pause(){ v.pause(); }
-function togglePlay(){ if(v.paused) play(); else pause(); }
+function togglePlay(){
+  // YouTube IFrame 모드: ytPlayer 상태로 판단
+  if(curMeta && curMeta.is_youtube && typeof ytPlayer !== 'undefined' && ytPlayer && ytPlayer.getPlayerState){
+    const state = ytPlayer.getPlayerState();
+    // YT.PlayerState.PLAYING = 1
+    if(state === 1) ytPlayer.pauseVideo();
+    else ytPlayer.playVideo();
+    return;
+  }
+  // HTML5 video 모드
+  if(v.paused) play(); else pause();
+}
 function seekTo(t){ try{ v.currentTime = t; }catch(e){} }
 function getCurrentTime(){ return v.currentTime || 0; }
 
