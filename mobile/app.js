@@ -107,11 +107,17 @@ async function renderRecent(){
     const pct = (at && total) ? Math.round(at/total*100) : 0;
     const continueLabel = at > 1
       ? `<span class="continue-badge">이어서 ${at}/${total}</span>` : '';
+    // 출처 URL 표시 (YouTube ID 있으면 youtu.be 링크, 외부 source 있으면 그대로)
+    const src = m.source || (m.video_id ? `https://youtu.be/${m.video_id}` : '');
+    const srcLink = src
+      ? `<a class="src-link" href="${src.replace(/"/g,'&quot;')}" target="_blank" rel="noopener" onclick="event.stopPropagation()">출처</a>`
+      : '';
+    const sizeLabel = m.size ? `· ${(m.size/1048576).toFixed(0)}MB` : (m.video_id ? '· YouTube' : '');
     return `
     <div class="recent-card" onclick="loadVideo('${m.id}')">
       <div style="flex:1;min-width:0">
-        <div class="name">${escapeHtml(m.name)}</div>
-        <div class="meta">${total}개 문장 · ${(m.size/1048576).toFixed(0)}MB ${continueLabel}</div>
+        <div class="name">${escapeHtml(m.name)} ${srcLink}</div>
+        <div class="meta">${total}개 문장 ${sizeLabel} ${continueLabel}</div>
         ${pct ? `<div class="progress-mini"><div class="progress-mini-bar" style="width:${pct}%"></div></div>` : ''}
       </div>
       <button class="btn-del" onclick="event.stopPropagation();deleteVideo('${m.id}')">삭제</button>
@@ -506,7 +512,11 @@ async function loadYoutubeUrl(){
 
   // 임시 메타 (duration은 onReady에서 채움)
   curId = id;
-  curMeta = {id, name:'YouTube ' + vid, video_id:vid, segments:[], ts:Date.now(), size:0, duration:0, is_youtube:true};
+  curMeta = {
+    id, name: 'YouTube ' + vid, video_id: vid,
+    source: url,  // 원래 URL 그대로 저장 (출처 링크용)
+    segments: [], ts: Date.now(), size: 0, duration: 0, is_youtube: true
+  };
   SEGMENTS = [];
   initYouTubePlayer(vid, true);
 }
