@@ -100,15 +100,23 @@ async function renderRecent(){
     list.innerHTML = '<div class="empty">아직 영상을 추가하지 않았습니다.</div>';
     return;
   }
-  list.innerHTML = metas.map(m => `
+  list.innerHTML = metas.map(m => {
+    const prog = loadProgress(m.id);
+    const total = m.segments.length;
+    const at = prog.cur != null ? prog.cur + 1 : 0;
+    const pct = (at && total) ? Math.round(at/total*100) : 0;
+    const continueLabel = at > 1
+      ? `<span class="continue-badge">이어서 ${at}/${total}</span>` : '';
+    return `
     <div class="recent-card" onclick="loadVideo('${m.id}')">
-      <div>
+      <div style="flex:1;min-width:0">
         <div class="name">${escapeHtml(m.name)}</div>
-        <div class="meta">${m.segments.length}개 문장 · ${(m.size/1048576).toFixed(0)}MB</div>
+        <div class="meta">${total}개 문장 · ${(m.size/1048576).toFixed(0)}MB ${continueLabel}</div>
+        ${pct ? `<div class="progress-mini"><div class="progress-mini-bar" style="width:${pct}%"></div></div>` : ''}
       </div>
       <button class="btn-del" onclick="event.stopPropagation();deleteVideo('${m.id}')">삭제</button>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -279,15 +287,40 @@ function loadVideoFile(file){
   if(v.src) URL.revokeObjectURL(v.src);
   v.src = URL.createObjectURL(file);
   v.load();
-  cur = 0; count = 0;
+  // 저장된 학습 진도 복원 (이어서 하기)
+  const saved = loadProgress(curId);
+  cur = saved.cur || 0; count = 0;
   v.addEventListener('loadedmetadata', () => {
-    seekTo(SEGMENTS[0]?.start || 0);
+    const startTime = saved.time != null ? saved.time : (SEGMENTS[cur]?.start || 0);
+    seekTo(startTime);
     updateBar();
-    loadAnalysisForSegment(0);
+    loadAnalysisForSegment(cur);
+    if(saved.cur > 0) toast(`이어서: ${cur+1}번째 문장`, 1800);
   }, {once:true});
 }
 
+// === 학습 진도 자동 저장 / 복원 ===
+function progressKey(id){ return id ? `progress:${id}` : null; }
+function saveProgress(){
+  const k = progressKey(curId); if(!k) return;
+  try{
+    localStorage.setItem(k, JSON.stringify({
+      cur, time: getCurrentTime() | 0, ts: Date.now()
+    }));
+  } catch(e){}
+}
+function loadProgress(id){
+  const k = progressKey(id); if(!k) return {};
+  try { return JSON.parse(localStorage.getItem(k) || '{}'); } catch(e){ return {}; }
+}
+// 5초마다 진도 저장
+setInterval(() => { if(curId) saveProgress(); }, 5000);
+// 페이지 이탈 시도 즉시 저장
+window.addEventListener('beforeunload', () => { if(curId) saveProgress(); });
+window.addEventListener('pagehide', () => { if(curId) saveProgress(); });
+
 function goHome(){
+  saveProgress();  // 이탈 전 진도 저장
   if(v.src){ URL.revokeObjectURL(v.src); v.src = ''; }
   document.getElementById('player').classList.remove('active');
   document.getElementById('home').style.display = 'block';
@@ -310,6 +343,7 @@ function jumpToCur(){
   play();
   updateBar();
   loadAnalysisForSegment(cur);
+  saveProgress();
 }
 function prevSeg(){ cur = Math.max(0, cur-1); count = 0; jumpToCur(); }
 function nextSeg(){ cur = Math.min(SEGMENTS.length-1, cur+1); count = 0; jumpToCur(); }

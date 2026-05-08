@@ -34,6 +34,9 @@ button,select,input{font-family:inherit}
 .recent-card:active{background:#374151}
 .recent-card .name{font-weight:bold;font-size:15px;color:#f3f4f6}
 .recent-card .meta{font-size:12px;color:#9ca3af;margin-top:2px}
+.continue-badge{display:inline-block;background:#1e3a8a;color:#bfdbfe;padding:1px 6px;border-radius:4px;font-size:10px;margin-left:4px;font-weight:bold}
+.progress-mini{height:3px;background:#0f172a;border-radius:2px;margin-top:4px;overflow:hidden}
+.progress-mini-bar{height:100%;background:#22c55e;border-radius:2px}
 .recent-card .btn-del{background:#7f1d1d;color:#fecaca;border:none;
   padding:6px 10px;border-radius:6px;font-size:12px;cursor:pointer}
 .disclaimer{margin-top:24px;padding:10px 14px;background:#1e293b;border-left:3px solid #f59e0b;
@@ -66,7 +69,7 @@ video::-webkit-media-controls-start-playback-button{display:none !important}
 /* === 컨트롤 === */
 .controls{position:sticky;bottom:0;background:#0b1220;box-shadow:0 -2px 8px rgba(0,0,0,.5);
   padding:6px 6px calc(8px + env(safe-area-inset-bottom));z-index:50}
-.ctrl-row{display:flex;flex-wrap:wrap;gap:5px;justify-content:center}
+.ctrl-row{display:flex;flex-wrap:wrap;gap:0 5px;justify-content:center;row-gap:0}
 .ctrl-row > *{flex:1 1 0;min-width:0;width:0;min-height:42px;padding:8px 4px;
   font-size:13px;font-weight:600;border:none;border-radius:8px;color:#f3f4f6;
   background:#374151;cursor:pointer;text-align:center;white-space:nowrap;
