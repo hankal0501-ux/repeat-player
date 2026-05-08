@@ -57,15 +57,19 @@ def extract_youtube_id(url):
 
 def yt_dlp_cmd(extra_args, out_template):
     env = os.environ.copy()
-    env['PATH'] = r'C:\Program Files\nodejs;' + env.get('PATH', '')
+    # Node.js: PC(Windows)에서만 사용. Linux/서버에선 PATH에 있으면 자동 사용
+    if sys.platform == 'win32':
+        env['PATH'] = r'C:\Program Files\nodejs;' + env.get('PATH', '')
     cmd = [
         sys.executable, '-m', 'yt_dlp',
-        '--js-runtimes', 'node',
-        '--remote-components', 'ejs:github',
         '--no-playlist',
         '--ffmpeg-location', get_ffmpeg(),
         '-o', out_template,
     ] + extra_args + [SRC]
+    # Node.js + PO Token 플러그인이 설치되어 있을 때만 추가 (PC 환경)
+    import shutil
+    if shutil.which('node'):
+        cmd[2:2] = ['--js-runtimes', 'node', '--remote-components', 'ejs:github']
     cookies = BASE.parent / 'cookies.txt'
     if cookies.exists():
         cmd[3:3] = ['--cookies', str(cookies)]
