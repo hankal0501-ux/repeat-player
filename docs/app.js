@@ -473,16 +473,28 @@ function closeModal(){ document.getElementById('modal').classList.remove('show')
 
 // === YouTube URL 입력 + 붙여넣기 ===
 async function pasteUrl(){
+  let txt = '';
   try {
-    const txt = await navigator.clipboard.readText();
-    document.getElementById('url-input').value = txt.trim();
+    txt = await navigator.clipboard.readText();
   } catch(e){
-    toast('붙여넣기 실패. 길게 눌러서 붙여넣기 사용하세요');
+    // 권한 거부 (iOS Safari 등) — 입력란 포커스만
+    document.getElementById('url-input').focus();
+    toast('주소창 길게 눌러서 직접 붙여넣기 (권한 없음)', 3500);
+    return;
   }
+  txt = (txt || '').trim();
+  if(!txt){ toast('클립보드 비어있음'); return; }
+  document.getElementById('url-input').value = txt;
 }
 
 function extractYouTubeId(url){
-  const m = url.match(/(?:v=|youtu\.be\/|\/shorts\/|\/embed\/)([A-Za-z0-9_-]{11})/);
+  if(!url) return null;
+  // 모바일 공유 시 텍스트가 함께 붙어올 수 있음 → 첫 공백/줄바꿈 전까지만
+  url = String(url).trim().split(/\s+/)[0];
+  // 1) 11자리 ID 그대로 입력한 경우
+  if(/^[A-Za-z0-9_-]{11}$/.test(url)) return url;
+  // 2) 모든 YouTube URL 형식 (youtu.be, watch, embed, shorts, live, m., music, no-cookie)
+  const m = url.match(/(?:youtu\.be\/|youtube(?:-nocookie)?\.com\/(?:watch\?(?:[^#]*&)?v=|embed\/|shorts\/|v\/|live\/|e\/)|music\.youtube\.com\/watch\?(?:[^#]*&)?v=)([A-Za-z0-9_-]{11})/);
   return m ? m[1] : null;
 }
 
@@ -490,7 +502,11 @@ async function loadYoutubeUrl(){
   const url = document.getElementById('url-input').value.trim();
   if(!url){ toast('YouTube 주소를 입력하세요'); return; }
   const vid = extractYouTubeId(url);
-  if(!vid){ toast('올바른 YouTube 주소가 아닙니다'); return; }
+  if(!vid){
+    const preview = url.length > 40 ? url.slice(0, 40) + '...' : url;
+    toast('YouTube 주소를 못 읽었습니다: ' + preview + ' — 다시 확인하세요', 4500);
+    return;
+  }
 
   const id = 'yt_' + vid;
   // 이미 등록된 영상이면 그걸 로드
