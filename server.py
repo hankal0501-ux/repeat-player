@@ -48,6 +48,9 @@ _legacy_pass = os.environ.get('RP_PASS', '').strip()
 if not RP_USERS and _legacy_user and _legacy_pass:
     RP_USERS = {_legacy_user: _legacy_pass}
 
+# 스트림 전용 모드 (Render 등 클라우드용) — yt-dlp 호출 안 함, 영상 다운로드 안 함
+RP_STREAM_ONLY = os.environ.get('RP_STREAM_ONLY', '').strip() in ('1', 'true', 'yes', 'on')
+
 def safe_user_name(u):
     """파일시스템에 안전한 사용자명 (영문/숫자/밑줄만)."""
     return re.sub(r'[^A-Za-z0-9_-]', '_', u)[:32] or 'user'
@@ -336,6 +339,11 @@ html,body{height:100%;background:#1f2937;color:#f3f4f6;font-family:'Apple SD Got
 header{padding:6px 8px;background:#111827;display:flex;gap:5px;align-items:center;flex-shrink:0;border-bottom:1px solid #374151}
 header h1{font-size:18px;font-weight:bold;flex:0 0 auto}
 .video-select{flex:2 1 0;min-width:0;padding:9px 8px;background:#374151;color:#fff;border:none;border-radius:6px;font-size:14px}
+.info-bar{padding:4px 10px;background:#0b1220;border-bottom:1px solid #374151;display:flex;align-items:center;gap:8px;flex-shrink:0;font-size:12px;flex-wrap:wrap}
+.info-bar:empty{display:none !important}
+.info-bar .info-name{color:#e5e7eb;font-weight:bold;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.info-bar .info-source{color:#60a5fa;text-decoration:none;padding:3px 8px;background:#1e3a8a;border-radius:4px;font-weight:bold;flex-shrink:0;font-size:11px}
+.info-bar .info-source:hover{background:#1d4ed8}
 .btn-add{flex:0 0 auto;padding:9px 12px;background:#22c55e;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:bold;white-space:nowrap}
 .btn-icon{flex:1 1 0;min-width:32px;padding:9px 4px;background:#374151;color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer;text-align:center;height:38px}
 .btn-icon:hover{background:#4b5563}
@@ -562,6 +570,7 @@ video::-internal-media-controls-overlay-cast-button{display:none !important}
         <h2 class="section-title">내 영상 목록</h2>
         <div class="proj-grid" id="proj-grid"></div>
       </div>
+      <div class="info-bar" id="info-bar" style="display:flex"></div>
       <div class="video-wrap" id="video-wrap" style="display:none">
         <div class="empty-video" id="empty-msg" style="display:none">영상을 선택하세요</div>
         <video id="v" playsinline preload="auto" style="display:none" onclick="togglePlay()"></video>
@@ -620,15 +629,22 @@ video::-internal-media-controls-overlay-cast-button{display:none !important}
 <div class="modal-bg" id="modal">
   <div class="modal">
     <h2>새 영상 처리</h2>
-    <div style="background:#1e293b;border-left:3px solid #f59e0b;padding:8px 12px;margin-bottom:10px;font-size:12px;color:#cbd5e1;border-radius:4px">
-      안내: 본인 권한이 있는 영상이거나 사적 학습용으로만 사용하세요. 저작권/YouTube 약관 준수는 사용자 책임입니다.
+    <div style="background:#1e293b;border-left:3px solid #f59e0b;padding:8px 12px;margin-bottom:10px;font-size:11px;color:#cbd5e1;border-radius:4px;line-height:1.5">
+      <b style="color:#fbbf24">주의 — 비상업적 학습용 도구</b><br>
+      · 본 프로그램은 <b>비상업적 사적 학습</b> 용도입니다<br>
+      · 저작권/YouTube 약관 준수, 모든 책임은 <b>사용자 본인</b>에게 있습니다<br>
+      · 원작자/제작진의 의도와 <b>무관</b>하며 본 프로그램은 어떠한 권리도 주장하지 않습니다<br>
+      · 임베드된 콘텐츠의 저작권은 각 소유자에게 있습니다
     </div>
     <div class="row">
-      <input type="text" id="m-url" placeholder="https://www.youtube.com/watch?v=...">
+      <input type="text" id="m-url" placeholder="https://www.youtube.com/watch?v=... (출처)">
       <button class="btn-paste" onclick="pasteUrl()">붙여넣기</button>
     </div>
     <div class="row">
-      <input type="text" id="m-pid" placeholder="프로젝트 ID (영문/숫자)">
+      <input type="text" id="m-name" placeholder="표시 이름 (한글 가능, 예: 중국어 1강)">
+    </div>
+    <div class="row">
+      <input type="text" id="m-pid" placeholder="프로젝트 ID (영문/숫자, 자동생성됨)">
     </div>
     <div class="adv" onclick="document.getElementById('adv-content').classList.toggle('show')">고급</div>
     <div class="adv-content" id="adv-content">
@@ -784,20 +800,59 @@ async function loadProject(pid){
     SEGMENTS = meta.segments;
     cur = 0; count = 0;
     setupModeToggle();
-    setMode(meta.has_download ? 'download' : 'stream');
+    // stream_only는 무조건 stream 모드
+    setMode(meta.stream_only ? 'stream' : (meta.has_download ? 'download' : 'stream'));
     document.getElementById('home-screen').style.display = 'none';
     document.getElementById('video-wrap').style.display = 'flex';
     document.getElementById('controls').style.display = 'flex';
     document.getElementById('progress-row').style.display = 'flex';
     document.getElementById('explain').style.display = 'block';
     document.getElementById('empty-msg').style.display = 'none';
+    renderInfoBar(meta);
     renderList();
     updateStats();
     if(mode === 'download'){
       v.src = '/' + meta.video_file;
       v.load();
     }
+    // stream_only + 빈 segments → 30초 단위 자동 분할 (IFrame 로드 후 duration 받아서)
+    if(meta.stream_only && (!meta.segments || meta.segments.length === 0)){
+      setTimeout(() => autoGenerateSegments(meta.id), 2500);
+    }
   } catch(e){ console.error(e); alert('오류: ' + e.message); }
+}
+
+function renderInfoBar(meta){
+  const bar = document.getElementById('info-bar');
+  if(!bar) return;
+  const src = meta.source || (meta.video_id ? `https://youtu.be/${meta.video_id}` : '');
+  const name = meta.name || meta.id;
+  bar.innerHTML = `
+    <span class="info-name">${name.replace(/</g,'&lt;')}</span>
+    ${src ? `<a class="info-source" href="${src.replace(/"/g,'&quot;')}" target="_blank" rel="noopener">출처</a>` : ''}
+  `;
+}
+
+async function autoGenerateSegments(pid){
+  try {
+    const dur = (typeof ytPlayer !== 'undefined' && ytPlayer && ytPlayer.getDuration) ? ytPlayer.getDuration() : 0;
+    if(!dur || dur < 5) return;  // 아직 IFrame 안 로드됨
+    const segs = [];
+    for(let s = 0; s < dur; s += 30){
+      segs.push({i: segs.length, start: s, end: Math.min(s+30, dur)});
+    }
+    const r = await fetch('/api/save-segments', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({pid, segments: segs, duration: dur})
+    });
+    const d = await r.json();
+    if(d.ok){
+      SEGMENTS = segs;
+      curMeta.segments = segs;
+      curMeta.duration = dur;
+      renderList(); updateStats();
+    }
+  } catch(e){ console.error('autoGenerateSegments', e); }
 }
 
 function closePlayer(){
@@ -1781,9 +1836,11 @@ let polling = null;
 async function startProcess(){
   const url = document.getElementById('m-url').value.trim();
   const pid = document.getElementById('m-pid').value.trim();
+  const name = document.getElementById('m-name').value.trim();
   if(!url || !pid){ alert('URL과 ID 모두 입력하세요'); return; }
   if(!/^[a-zA-Z0-9_-]+$/.test(pid)){ alert('ID는 영문/숫자/_/-만'); return; }
-  const data = new URLSearchParams({pid, url, mode: document.getElementById('m-mode').value,
+  const data = new URLSearchParams({pid, url, name: name || pid, source: url,
+    mode: document.getElementById('m-mode').value,
     noise: document.getElementById('m-noise').value, silence: document.getElementById('m-silence').value});
   document.getElementById('m-status').textContent = '시작 중...';
   document.getElementById('m-log').style.display = 'block';
@@ -1792,6 +1849,11 @@ async function startProcess(){
     const r = await fetch('/api/process', {method:'POST', body: data});
     const resp = await r.json();
     if(resp.error){ document.getElementById('m-status').textContent = '오류: '+resp.error; return; }
+    if(resp.stream_only){
+      document.getElementById('m-status').textContent = '✅ 메타 생성됨 (스트림 모드). 영상 목록에 추가됨.';
+      setTimeout(() => { closeModal(); refreshList(); openProject(pid); }, 800);
+      return;
+    }
     document.getElementById('m-status').textContent = '⏳ 처리 중 (10-15분)...';
     polling = setInterval(() => pollStatus(pid), 1500);
   } catch(e){ document.getElementById('m-status').textContent = '오류: '+e.message; }
@@ -2234,6 +2296,29 @@ class Handler(SimpleHTTPRequestHandler):
                         try: f.unlink(); removed.append(f.name)
                         except: pass
             return self._json({'ok': True, 'removed': removed})
+        if self.path == '/api/save-segments':
+            length = int(self.headers.get('Content-Length', 0))
+            try:
+                payload = json.loads(self.rfile.read(length).decode('utf-8'))
+            except Exception:
+                return self._json({'error': 'invalid JSON'}, 400)
+            pid = (payload.get('pid') or '').strip()
+            segs = payload.get('segments') or []
+            duration = payload.get('duration') or 0
+            if not pid or not re.match(r'^[a-zA-Z0-9_-]+$', pid):
+                return self._json({'error': 'invalid pid'}, 400)
+            udir = self.user_dir()
+            meta_file = udir / f'{pid}.meta.json'
+            if not meta_file.exists():
+                return self._json({'error': 'project not found'}, 404)
+            try:
+                meta = json.loads(meta_file.read_text(encoding='utf-8'))
+                meta['segments'] = segs
+                if duration: meta['duration'] = duration
+                meta_file.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding='utf-8')
+                return self._json({'ok': True, 'count': len(segs)})
+            except Exception as e:
+                return self._json({'error': str(e)}, 500)
         if self.path == '/api/process':
             length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(length).decode('utf-8')
@@ -2243,10 +2328,32 @@ class Handler(SimpleHTTPRequestHandler):
             mode = params.get('mode', ['both'])[0]
             noise = params.get('noise', ['-30'])[0]
             silence = params.get('silence', ['0.4'])[0]
+            name = params.get('name', [''])[0].strip()
+            source = params.get('source', [''])[0].strip()
             if not pid or not url:
                 return self._json({'error': 'pid/url required'}, 400)
             if not re.match(r'^[a-zA-Z0-9_-]+$', pid):
                 return self._json({'error': 'invalid pid'}, 400)
+            # 스트림 전용 모드 (Render 등): yt-dlp 호출 없이 메타만 즉시 생성
+            if RP_STREAM_ONLY:
+                m = re.search(r'(?:v=|youtu\.be/|/shorts/|/embed/)([A-Za-z0-9_-]{11})', url)
+                if not m:
+                    return self._json({'error': 'YouTube URL이 아닙니다 (스트림 전용 모드)'}, 400)
+                video_id = m.group(1)
+                udir = self.user_dir()
+                meta = {
+                    'id': pid, 'name': name or pid, 'video_id': video_id,
+                    'has_download': False, 'has_stream': True,
+                    'source': source or url,
+                    'segments': [],  # 클라이언트가 IFrame 로드 후 duration 받아 30초 분할
+                    'stream_only': True,
+                }
+                (udir / f'{pid}.meta.json').write_text(
+                    json.dumps(meta, ensure_ascii=False, indent=2), encoding='utf-8')
+                with JOB_LOCK:
+                    JOBS[pid] = {'status':'done', 'log':['스트림 전용 모드: 메타만 생성됨'],
+                                 'started':time.time(), 'finished':time.time(), 'exit_code':0}
+                return self._json({'ok': True, 'pid': pid, 'stream_only': True})
             with JOB_LOCK:
                 if pid in JOBS and JOBS[pid].get('status') == 'running':
                     return self._json({'error': 'already running'}, 409)
